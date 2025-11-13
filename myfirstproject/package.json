@@ -1,30 +1,110 @@
 {
-  "name": "myfirstproject",
-  "author": "MakeAwesomeHappen",
+  "name": "modules-watchface",
+  "author": "ClickCalickClick",
   "version": "1.0.0",
   "keywords": ["pebble-app"],
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "pebble-clay": "^1.0.4"
+  },
   "pebble": {
-    "displayName": "myfirstproject",
-    "uuid": "00000000-0000-0000-0000-000000000001",
+    "displayName": "Modules",
+    "uuid": "a1b2c3d4-e5f6-4789-a1b2-c3d4e5f67890",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
       "aplite",
-      "basalt",
-      "chalk",
-      "diorite",
-      "emery"
+      "diorite"
     ],
     "watchapp": {
-      "watchface": false
+      "watchface": true
     },
     "messageKeys": [
-      "dummy"
+      "Temperature",
+      "Condition",
+      "WeatherIcon",
+      "TemperatureUnit",
+      "UseGPS",
+      "ZipCode",
+      "Quadrant1Module",
+      "Quadrant2Module",
+      "Quadrant3Module",
+      "Quadrant4Module"
     ],
     "resources": {
-      "media": []
-    }
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "ICON_BATTERY_EMPTY",
+          "file": "images/battery-empty.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BATTERY_LOW",
+          "file": "images/battery-low.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BATTERY_MEDIUM",
+          "file": "images/battery-medium.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BATTERY_FULL",
+          "file": "images/battery-full.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_BATTERY_CHARGING",
+          "file": "images/battery-charging.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_SUNNY",
+          "file": "images/Sunny-day.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_PARTLY_CLOUDY",
+          "file": "images/Partly-cloudy.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_CLOUDY",
+          "file": "images/Cloudy-weather.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_LIGHT_RAIN",
+          "file": "images/Light-rain.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HEAVY_RAIN",
+          "file": "images/Heavy-rain.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_LIGHT_SNOW",
+          "file": "images/Light-snow.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_HEAVY_SNOW",
+          "file": "images/Heavy-snow.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_RAIN_SNOW",
+          "file": "images/Raining-and-snowing.png"
+        },
+        {
+          "type": "bitmap",
+          "name": "ICON_WEATHER_GENERIC",
+          "file": "images/Generic-weather.png"
+        }
+      ]
+    },
+    "capabilities": []
   }
 }

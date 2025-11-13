@@ -1,0 +1,425 @@
+#include <pebble.h>
+#include <ctype.h>
+#include "config.h"
+
+// UI Elements
+static Window *s_main_window;
+static Layer *s_background_layer;
+
+// Quadrant 1 - Date (Top Left)
+static TextLayer *s_day_name_layer;
+static TextLayer *s_day_number_layer;
+static TextLayer *s_month_name_layer;
+
+// Quadrant 2 - Weather (Top Right)
+static BitmapLayer *s_weather_icon_layer;
+static GBitmap *s_weather_icon;
+static TextLayer *s_temperature_layer;
+static TextLayer *s_weather_condition_layer;
+
+// Quadrant 3 - Time (Bottom Left)
+static TextLayer *s_hour_layer;
+static TextLayer *s_minute_layer;
+
+// Quadrant 4 - Stats (Bottom Right)
+static BitmapLayer *s_battery_icon_layer;
+static GBitmap *s_battery_icon;
+static TextLayer *s_battery_text_layer;
+static Layer *s_divider_layer;
+static TextLayer *s_steps_count_layer;
+static TextLayer *s_steps_label_layer;
+
+// Data buffers
+static char s_day_name_buffer[4];
+static char s_day_number_buffer[3];
+static char s_month_name_buffer[4];
+static char s_temperature_buffer[8];
+static char s_hour_buffer[3];
+static char s_minute_buffer[3];
+static char s_battery_buffer[6];
+static char s_steps_buffer[12];
+static char s_weather_condition_buffer[16];
+
+// Settings
+static bool s_use_celsius = false;
+
+// Background layer update procedure
+static void background_layer_update_proc(Layer *layer, GContext *ctx) {
+  // GRect bounds = layer_get_bounds(layer);
+  
+  // Fill quadrant backgrounds
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_rect(ctx, GRect(0, 0, 72, 84), 0, GCornerNone); // Q1 - white
+  
+  graphics_context_set_fill_color(ctx, GColorLightGray);
+  graphics_fill_rect(ctx, GRect(72, 0, 72, 84), 0, GCornerNone); // Q2 - light gray
+  graphics_fill_rect(ctx, GRect(0, 84, 72, 84), 0, GCornerNone); // Q3 - light gray
+  
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_rect(ctx, GRect(72, 84, 72, 84), 0, GCornerNone); // Q4 - white
+  
+  // Draw grid lines
+  graphics_context_set_stroke_color(ctx, GColorBlack);
+  graphics_context_set_stroke_width(ctx, 1);
+  
+  // Vertical line at x=72
+  graphics_draw_line(ctx, GPoint(72, 0), GPoint(72, 168));
+  
+  // Horizontal line at y=84
+  graphics_draw_line(ctx, GPoint(0, 84), GPoint(144, 84));
+}
+
+// Divider layer for Q4
+static void divider_layer_update_proc(Layer *layer, GContext *ctx) {
+  graphics_context_set_stroke_color(ctx, GColorBlack);
+  graphics_draw_line(ctx, GPoint(6, 32), GPoint(66, 32)); // Relative to layer position
+}
+
+// Update time
+static void update_time() {
+  time_t temp = time(NULL);
+  struct tm *tick_time = localtime(&temp);
+  
+  // Update time
+  strftime(s_hour_buffer, sizeof(s_hour_buffer), clock_is_24h_style() ? "%H" : "%I", tick_time);
+  strftime(s_minute_buffer, sizeof(s_minute_buffer), "%M", tick_time);
+  
+  // Remove leading zero for 12-hour format
+  if (!clock_is_24h_style() && s_hour_buffer[0] == '0') {
+    memmove(s_hour_buffer, s_hour_buffer + 1, sizeof(s_hour_buffer) - 1);
+  }
+  
+  text_layer_set_text(s_hour_layer, s_hour_buffer);
+  text_layer_set_text(s_minute_layer, s_minute_buffer);
+  
+  // Update date
+  strftime(s_day_name_buffer, sizeof(s_day_name_buffer), "%a", tick_time);
+  strftime(s_day_number_buffer, sizeof(s_day_number_buffer), "%e", tick_time);
+  strftime(s_month_name_buffer, sizeof(s_month_name_buffer), "%b", tick_time);
+  
+  // Convert to uppercase
+  for (int i = 0; s_day_name_buffer[i]; i++) {
+    s_day_name_buffer[i] = toupper((unsigned char)s_day_name_buffer[i]);
+  }
+  for (int i = 0; s_month_name_buffer[i]; i++) {
+    s_month_name_buffer[i] = toupper((unsigned char)s_month_name_buffer[i]);
+  }
+  
+  text_layer_set_text(s_day_name_layer, s_day_name_buffer);
+  text_layer_set_text(s_day_number_layer, s_day_number_buffer);
+  text_layer_set_text(s_month_name_layer, s_month_name_buffer);
+}
+
+// Update battery
+static void update_battery() {
+  BatteryChargeState battery_state = battery_state_service_peek();
+  snprintf(s_battery_buffer, sizeof(s_battery_buffer), "%d%%", battery_state.charge_percent);
+  text_layer_set_text(s_battery_text_layer, s_battery_buffer);
+  
+  // Update battery icon based on charge level and charging state
+  if (s_battery_icon) {
+    gbitmap_destroy(s_battery_icon);
+  }
+  
+  uint32_t resource_id;
+  if (battery_state.is_charging) {
+    resource_id = RESOURCE_ID_ICON_BATTERY_CHARGING;
+  } else if (battery_state.charge_percent >= 75) {
+    resource_id = RESOURCE_ID_ICON_BATTERY_FULL;
+  } else if (battery_state.charge_percent >= 40) {
+    resource_id = RESOURCE_ID_ICON_BATTERY_MEDIUM;
+  } else if (battery_state.charge_percent >= 15) {
+    resource_id = RESOURCE_ID_ICON_BATTERY_LOW;
+  } else {
+    resource_id = RESOURCE_ID_ICON_BATTERY_EMPTY;
+  }
+  
+  s_battery_icon = gbitmap_create_with_resource(resource_id);
+  bitmap_layer_set_bitmap(s_battery_icon_layer, s_battery_icon);
+}
+
+// Update steps (for Pebble 2, no health API)
+static void update_steps() {
+  // Pebble 2 (diorite/aplite) doesn't have Health API
+  // Show placeholder
+  snprintf(s_steps_buffer, sizeof(s_steps_buffer), "0");
+  text_layer_set_text(s_steps_count_layer, s_steps_buffer);
+}
+
+// Update weather - will be updated via AppMessage
+// Update weather - will be updated via AppMessage
+static void update_weather() {
+  // Placeholder - will be updated from phone
+  snprintf(s_temperature_buffer, sizeof(s_temperature_buffer), "--°");
+  text_layer_set_text(s_temperature_layer, s_temperature_buffer);
+  text_layer_set_text(s_weather_condition_layer, "--");
+}
+
+// Tick handler
+static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
+  update_time();
+  
+  // Update weather every 30 minutes
+  if (tick_time->tm_min % 30 == 0) {
+    DictionaryIterator *iter;
+    app_message_outbox_begin(&iter);
+    dict_write_uint8(iter, MESSAGE_KEY_Temperature, 1);
+    app_message_outbox_send();
+  }
+}
+
+// Battery callback
+static void battery_callback(BatteryChargeState charge_state) {
+  update_battery();
+}
+
+// Inbox received callback
+static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "=== inbox_received_callback START ===");
+  
+  // Read weather data from phone
+  Tuple *temp_tuple = dict_find(iterator, MESSAGE_KEY_Temperature);
+  Tuple *icon_tuple = dict_find(iterator, MESSAGE_KEY_WeatherIcon);
+  Tuple *condition_tuple = dict_find(iterator, MESSAGE_KEY_Condition);
+  
+  if (temp_tuple) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Temperature: %d", (int)temp_tuple->value->int32);
+    snprintf(s_temperature_buffer, sizeof(s_temperature_buffer), "%d°%c", 
+             (int)temp_tuple->value->int32, s_use_celsius ? 'C' : 'F');
+    text_layer_set_text(s_temperature_layer, s_temperature_buffer);
+  } else {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Temperature tuple not found");
+  }
+  
+  if (condition_tuple) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Condition: %s", condition_tuple->value->cstring);
+    snprintf(s_weather_condition_buffer, sizeof(s_weather_condition_buffer), "%s", condition_tuple->value->cstring);
+    text_layer_set_text(s_weather_condition_layer, s_weather_condition_buffer);
+  } else {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Condition tuple not found");
+  }
+  
+  if (icon_tuple) {
+    // Update weather icon
+    if (s_weather_icon) {
+      gbitmap_destroy(s_weather_icon);
+    }
+    
+    int icon_id = (int)icon_tuple->value->int32;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Weather icon ID: %d", icon_id);
+    uint32_t resource_id = RESOURCE_ID_ICON_WEATHER_GENERIC; // Default
+    
+    // Map icon IDs to new weather icon resources
+    switch(icon_id) {
+      case 0: resource_id = RESOURCE_ID_ICON_WEATHER_SUNNY; break;           // Clear/Sunny
+      case 1: resource_id = RESOURCE_ID_ICON_WEATHER_PARTLY_CLOUDY; break;   // Partly Cloudy
+      case 2: resource_id = RESOURCE_ID_ICON_WEATHER_CLOUDY; break;          // Cloudy
+      case 3: resource_id = RESOURCE_ID_ICON_WEATHER_LIGHT_RAIN; break;      // Light Rain
+      case 4: resource_id = RESOURCE_ID_ICON_WEATHER_HEAVY_RAIN; break;      // Heavy Rain/Rain
+      case 5: resource_id = RESOURCE_ID_ICON_WEATHER_LIGHT_SNOW; break;      // Light Snow
+      case 6: resource_id = RESOURCE_ID_ICON_WEATHER_HEAVY_SNOW; break;      // Heavy Snow/Snow
+      case 7: resource_id = RESOURCE_ID_ICON_WEATHER_RAIN_SNOW; break;       // Rain and Snow
+      default: resource_id = RESOURCE_ID_ICON_WEATHER_GENERIC; break;        // Generic/Unknown
+    }
+    
+    s_weather_icon = gbitmap_create_with_resource(resource_id);
+    bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon);
+  } else {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Icon tuple not found");
+  }
+  
+  // Read settings
+  Tuple *temp_unit_tuple = dict_find(iterator, MESSAGE_KEY_TemperatureUnit);
+  if (temp_unit_tuple) {
+    s_use_celsius = temp_unit_tuple->value->int32 == 1;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Use Celsius: %d", s_use_celsius);
+  }
+  
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "=== inbox_received_callback END ===");
+}
+
+// Inbox dropped callback
+static void inbox_dropped_callback(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped! Reason: %d", (int)reason);
+}
+
+// Outbox failed callback
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed! Reason: %d", (int)reason);
+}
+
+// Outbox sent callback
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Outbox send success!");
+}
+
+// Main window load
+static void main_window_load(Window *window) {
+  Layer *window_layer = window_get_root_layer(window);
+  // GRect bounds = layer_get_bounds(window_layer);
+  
+  // Create background layer
+  s_background_layer = layer_create(GRect(0, 0, 144, 168));
+  layer_set_update_proc(s_background_layer, background_layer_update_proc);
+  layer_add_child(window_layer, s_background_layer);
+  
+  // QUADRANT 1 - DATE (Top Left) - centered vertically in quadrant
+  s_day_name_layer = text_layer_create(GRect(0, 3, 72, 14));
+  text_layer_set_background_color(s_day_name_layer, GColorClear);
+  text_layer_set_text_color(s_day_name_layer, GColorBlack);
+  text_layer_set_font(s_day_name_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_alignment(s_day_name_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_day_name_layer));
+  
+  s_day_number_layer = text_layer_create(GRect(0, 15, 72, 51));
+  text_layer_set_background_color(s_day_number_layer, GColorClear);
+  text_layer_set_text_color(s_day_number_layer, GColorBlack);
+  text_layer_set_font(s_day_number_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+  text_layer_set_text_alignment(s_day_number_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_day_number_layer));
+  
+  s_month_name_layer = text_layer_create(GRect(0, 62, 72, 71));
+  text_layer_set_background_color(s_month_name_layer, GColorClear);
+  text_layer_set_text_color(s_month_name_layer, GColorBlack);
+  text_layer_set_font(s_month_name_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_alignment(s_month_name_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_month_name_layer));
+  
+  // QUADRANT 2 - WEATHER (Top Right) - moved up 10 pixels, removed condition text
+  s_weather_icon_layer = bitmap_layer_create(GRect(94, 2, 28, 28));
+  bitmap_layer_set_background_color(s_weather_icon_layer, GColorClear);
+  bitmap_layer_set_compositing_mode(s_weather_icon_layer, GCompOpSet);
+  s_weather_icon = gbitmap_create_with_resource(RESOURCE_ID_ICON_WEATHER_GENERIC);
+  bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon);
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_weather_icon_layer));
+  
+  s_temperature_layer = text_layer_create(GRect(72, 30, 72, 54));
+  text_layer_set_background_color(s_temperature_layer, GColorClear);
+  text_layer_set_text_color(s_temperature_layer, GColorBlack);
+  text_layer_set_font(s_temperature_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
+  text_layer_set_text_alignment(s_temperature_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_temperature_layer));
+  
+  s_weather_condition_layer = text_layer_create(GRect(72, 55, 72, 68));
+  text_layer_set_background_color(s_weather_condition_layer, GColorClear);
+  text_layer_set_text_color(s_weather_condition_layer, GColorBlack);
+  text_layer_set_font(s_weather_condition_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+  text_layer_set_text_alignment(s_weather_condition_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_weather_condition_layer));
+  
+  // QUADRANT 3 - TIME (Bottom Left) - centered vertically
+  s_hour_layer = text_layer_create(GRect(0, 78, 72, 120));
+  text_layer_set_background_color(s_hour_layer, GColorClear);
+  text_layer_set_text_color(s_hour_layer, GColorBlack);
+  text_layer_set_font(s_hour_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+  text_layer_set_text_alignment(s_hour_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_hour_layer));
+  
+  s_minute_layer = text_layer_create(GRect(0, 120, 72, 162));
+  text_layer_set_background_color(s_minute_layer, GColorClear);
+  text_layer_set_text_color(s_minute_layer, GColorDarkGray);
+  text_layer_set_font(s_minute_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
+  text_layer_set_text_alignment(s_minute_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_minute_layer));
+  
+  // QUADRANT 4 - STATS (Bottom Right)
+  s_battery_icon_layer = bitmap_layer_create(GRect(86, 94, 16, 16));
+  bitmap_layer_set_background_color(s_battery_icon_layer, GColorClear);
+  bitmap_layer_set_compositing_mode(s_battery_icon_layer, GCompOpSet);
+  s_battery_icon = gbitmap_create_with_resource(RESOURCE_ID_ICON_BATTERY_FULL);
+  bitmap_layer_set_bitmap(s_battery_icon_layer, s_battery_icon);
+  layer_add_child(window_layer, bitmap_layer_get_layer(s_battery_icon_layer));
+  
+  s_battery_text_layer = text_layer_create(GRect(104, 91, 40, 105));
+  text_layer_set_background_color(s_battery_text_layer, GColorClear);
+  text_layer_set_text_color(s_battery_text_layer, GColorBlack);
+  text_layer_set_font(s_battery_text_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_alignment(s_battery_text_layer, GTextAlignmentLeft);
+  layer_add_child(window_layer, text_layer_get_layer(s_battery_text_layer));
+  
+  // Divider line layer
+  s_divider_layer = layer_create(GRect(72, 84, 72, 84));
+  layer_set_update_proc(s_divider_layer, divider_layer_update_proc);
+  layer_add_child(window_layer, s_divider_layer);
+  
+  s_steps_count_layer = text_layer_create(GRect(72, 118, 72, 145));
+  text_layer_set_background_color(s_steps_count_layer, GColorClear);
+  text_layer_set_text_color(s_steps_count_layer, GColorBlack);
+  text_layer_set_font(s_steps_count_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+  text_layer_set_text_alignment(s_steps_count_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer, text_layer_get_layer(s_steps_count_layer));
+  
+  s_steps_label_layer = text_layer_create(GRect(72, 144, 72, 160));
+  text_layer_set_background_color(s_steps_label_layer, GColorClear);
+  text_layer_set_text_color(s_steps_label_layer, GColorDarkGray);
+  text_layer_set_font(s_steps_label_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_alignment(s_steps_label_layer, GTextAlignmentCenter);
+  text_layer_set_text(s_steps_label_layer, "STEPS");
+  layer_add_child(window_layer, text_layer_get_layer(s_steps_label_layer));
+  
+  // Initialize displays
+  update_time();
+  update_battery();
+  update_weather();
+  update_steps();
+}
+
+// Main window unload
+static void main_window_unload(Window *window) {
+  layer_destroy(s_background_layer);
+  text_layer_destroy(s_day_name_layer);
+  text_layer_destroy(s_day_number_layer);
+  text_layer_destroy(s_month_name_layer);
+  text_layer_destroy(s_temperature_layer);
+  text_layer_destroy(s_weather_condition_layer);
+  text_layer_destroy(s_hour_layer);
+  text_layer_destroy(s_minute_layer);
+  text_layer_destroy(s_battery_text_layer);
+  text_layer_destroy(s_steps_count_layer);
+  text_layer_destroy(s_steps_label_layer);
+  layer_destroy(s_divider_layer);
+  
+  bitmap_layer_destroy(s_weather_icon_layer);
+  bitmap_layer_destroy(s_battery_icon_layer);
+  
+  if (s_weather_icon) {
+    gbitmap_destroy(s_weather_icon);
+  }
+  if (s_battery_icon) {
+    gbitmap_destroy(s_battery_icon);
+  }
+}
+
+// Init
+static void init() {
+  // Create main window
+  s_main_window = window_create();
+  window_set_window_handlers(s_main_window, (WindowHandlers) {
+    .load = main_window_load,
+    .unload = main_window_unload
+  });
+  window_stack_push(s_main_window, true);
+  
+  // Register services
+  tick_timer_service_subscribe(MINUTE_UNIT, tick_handler);
+  battery_state_service_subscribe(battery_callback);
+  
+  // Register AppMessage callbacks
+  app_message_register_inbox_received(inbox_received_callback);
+  app_message_register_inbox_dropped(inbox_dropped_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_register_outbox_sent(outbox_sent_callback);
+  app_message_open(512, 512);
+}
+
+// Deinit
+static void deinit() {
+  window_destroy(s_main_window);
+}
+
+// Main
+int main(void) {
+  init();
+  app_event_loop();
+  deinit();
+}

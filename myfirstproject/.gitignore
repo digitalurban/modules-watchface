@@ -1,0 +1,16 @@
+# Pebble build artifacts
+build/
+
+# Node modules
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Package lock (optional - some prefer to commit this)
+# package-lock.json
