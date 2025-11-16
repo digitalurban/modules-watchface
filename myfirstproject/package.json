@@ -39,7 +39,15 @@
       "Quadrant1Color",
       "Quadrant2Color",
       "Quadrant3Color",
-      "Quadrant4Color"
+      "Quadrant4Color",
+      "Quadrant1AutoTextColor",
+      "Quadrant2AutoTextColor",
+      "Quadrant3AutoTextColor",
+      "Quadrant4AutoTextColor",
+      "Quadrant1TextColor",
+      "Quadrant2TextColor",
+      "Quadrant3TextColor",
+      "Quadrant4TextColor"
     ],
     "resources": {
       "media": [

@@ -136,6 +136,24 @@ module.exports = [
       },
       {
         "type": "toggle",
+        "messageKey": "Quadrant1AutoTextColor",
+        "label": "Q1 - Auto Text Color",
+        "description": "Automatically choose white/black text based on background",
+        "defaultValue": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant1TextColor",
+        "label": "Q1 Custom Text Color",
+        "description": "Used when Auto Text Color is OFF",
+        "defaultValue": "0x000000",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "toggle",
         "messageKey": "Quadrant2Background",
         "label": "Q2 - Top Right Background",
         "description": "Enable custom background",
@@ -146,6 +164,24 @@ module.exports = [
         "messageKey": "Quadrant2Color",
         "label": "Q2 Background Color",
         "defaultValue": "0xAAAAAA",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "toggle",
+        "messageKey": "Quadrant2AutoTextColor",
+        "label": "Q2 - Auto Text Color",
+        "description": "Automatically choose white/black text based on background",
+        "defaultValue": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant2TextColor",
+        "label": "Q2 Custom Text Color",
+        "description": "Used when Auto Text Color is OFF",
+        "defaultValue": "0x000000",
         "sunlight": false,
         "allowGray": true,
         "capabilities": ['COLOR']
@@ -168,6 +204,24 @@ module.exports = [
       },
       {
         "type": "toggle",
+        "messageKey": "Quadrant3AutoTextColor",
+        "label": "Q3 - Auto Text Color",
+        "description": "Automatically choose white/black text based on background",
+        "defaultValue": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant3TextColor",
+        "label": "Q3 Custom Text Color",
+        "description": "Used when Auto Text Color is OFF",
+        "defaultValue": "0x000000",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "toggle",
         "messageKey": "Quadrant4Background",
         "label": "Q4 - Bottom Right Background",
         "description": "Enable custom background",
@@ -178,6 +232,24 @@ module.exports = [
         "messageKey": "Quadrant4Color",
         "label": "Q4 Background Color",
         "defaultValue": "0xAAAAAA",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "toggle",
+        "messageKey": "Quadrant4AutoTextColor",
+        "label": "Q4 - Auto Text Color",
+        "description": "Automatically choose white/black text based on background",
+        "defaultValue": true,
+        "capabilities": ['COLOR']
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant4TextColor",
+        "label": "Q4 Custom Text Color",
+        "description": "Used when Auto Text Color is OFF",
+        "defaultValue": "0x000000",
         "sunlight": false,
         "allowGray": true,
         "capabilities": ['COLOR']

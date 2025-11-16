@@ -25,6 +25,14 @@ typedef enum {
 #define PERSIST_KEY_Q2_COLOR 109
 #define PERSIST_KEY_Q3_COLOR 110
 #define PERSIST_KEY_Q4_COLOR 111
+#define PERSIST_KEY_Q1_AUTO_TEXT 112
+#define PERSIST_KEY_Q2_AUTO_TEXT 113
+#define PERSIST_KEY_Q3_AUTO_TEXT 114
+#define PERSIST_KEY_Q4_AUTO_TEXT 115
+#define PERSIST_KEY_Q1_TEXT_COLOR 116
+#define PERSIST_KEY_Q2_TEXT_COLOR 117
+#define PERSIST_KEY_Q3_TEXT_COLOR 118
+#define PERSIST_KEY_Q4_TEXT_COLOR 119
 
 // UI Elements
 static Window *s_main_window;
@@ -88,6 +96,17 @@ static bool s_quadrant_backgrounds[4] = {
 // Color values for each quadrant (stored as 32-bit integer in ARGB8 format)
 static GColor s_quadrant_colors[4];
 
+// Auto text color enabled for each quadrant (true = auto, false = manual)
+static bool s_auto_text_color[4] = {
+  true,  // Q1 default: auto
+  true,  // Q2 default: auto
+  true,  // Q3 default: auto
+  true   // Q4 default: auto
+};
+
+// Custom text color for each quadrant (when auto is disabled)
+static GColor s_custom_text_color[4];
+
 // Quadrant origins (x, y)
 static const GPoint QUADRANT_ORIGINS[4] = {
   {0, 0},     // Q1 - Top Left
@@ -96,11 +115,54 @@ static const GPoint QUADRANT_ORIGINS[4] = {
   {72, 84}    // Q4 - Bottom Right
 };
 
+#ifdef PBL_COLOR
+static inline uint8_t prv_expand_component(uint8_t value) {
+  return value * 85; // Map 2-bit component (0-3) to 0-255 range
+}
+
+static uint8_t prv_calculate_brightness(GColor color) {
+  uint8_t red = prv_expand_component((color.argb >> 4) & 0x3);
+  uint8_t green = prv_expand_component((color.argb >> 2) & 0x3);
+  uint8_t blue = prv_expand_component(color.argb & 0x3);
+  return (uint8_t)((red * 299 + green * 587 + blue * 114) / 1000);
+}
+#endif
+
+// Determine text color for a quadrant based on background and settings
+static GColor get_text_color_for_quadrant(int quadrant) {
+  GColor result = GColorBlack;
+  bool auto_mode = s_auto_text_color[quadrant];
+  
+  if (!auto_mode) {
+    result = s_custom_text_color[quadrant];
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "TextColor q%d manual -> 0x%02X", quadrant + 1, result.argb);
+    return result;
+  }
+  
+#ifdef PBL_COLOR
+  if (s_quadrant_backgrounds[quadrant]) {
+    GColor bg_color = s_quadrant_colors[quadrant];
+    uint8_t brightness = prv_calculate_brightness(bg_color);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "TextColor q%d auto bg=0x%02X brightness=%d", quadrant + 1, bg_color.argb, brightness);
+    if (brightness < 128) {
+      result = GColorWhite;  // Dark background, use white text
+    }
+  } else {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "TextColor q%d auto bg disabled", quadrant + 1);
+  }
+#else
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "TextColor q%d auto (B&W) -> black", quadrant + 1);
+#endif
+  
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "TextColor q%d auto result 0x%02X", quadrant + 1, result.argb);
+  return result;
+}
+
 // Relative positions for DATE module (relative to quadrant origin)
 static const GRect DATE_LAYOUTS[3] = {
   {{0, 0}, {72, 20}},   // day name (increased height for GOTHIC_18_BOLD)
   {{0, 15}, {72, 66}},  // day number
-  {{0, 62}, {72, 76}}   // month name
+  {{0, 63}, {72, 77}}   // month name (moved down 1px)
 };
 
 // Relative positions for WEATHER module (relative to quadrant origin)
@@ -192,6 +254,43 @@ static void update_fonts_for_background() {
     text_layer_set_font(s_steps_label_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   }
 #endif
+}
+
+// Update text colors for all modules based on quadrant assignments
+static void update_text_colors() {
+  for (int q = 0; q < 4; q++) {
+    GColor text_color = get_text_color_for_quadrant(q);
+    ModuleType module = s_quadrant_modules[q];
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Applying text color 0x%02X to quadrant %d module %d", text_color.argb, q + 1, module);
+    
+    switch (module) {
+      case MODULE_DATE:
+        text_layer_set_text_color(s_day_name_layer, text_color);
+        text_layer_set_text_color(s_day_number_layer, text_color);
+        text_layer_set_text_color(s_month_name_layer, text_color);
+        break;
+        
+      case MODULE_WEATHER:
+        text_layer_set_text_color(s_temperature_layer, text_color);
+        text_layer_set_text_color(s_weather_condition_layer, text_color);
+        break;
+        
+      case MODULE_TIME:
+        text_layer_set_text_color(s_hour_layer, text_color);
+        text_layer_set_text_color(s_minute_layer, text_color);
+        break;
+        
+      case MODULE_STATS:
+        text_layer_set_text_color(s_battery_text_layer, text_color);
+        text_layer_set_text_color(s_steps_count_layer, text_color);
+        text_layer_set_text_color(s_steps_label_layer, text_color);
+        break;
+        
+      case MODULE_EMPTY:
+      default:
+        break;
+    }
+  }
 }
 
 // Reposition layers based on module assignments
@@ -304,6 +403,9 @@ static void reposition_layers() {
   
   // Update fonts based on background state (B&W only)
   update_fonts_for_background();
+  
+  // Update text colors based on background colors
+  update_text_colors();
 }
 
 // Update time
@@ -693,6 +795,74 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     background_changed = true;
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Q4 Color: 0x%x", (unsigned int)q4_color_tuple->value->int32);
   }
+  
+  // Read auto text color settings
+  Tuple *q1_auto_text_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant1AutoTextColor);
+  Tuple *q2_auto_text_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant2AutoTextColor);
+  Tuple *q3_auto_text_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant3AutoTextColor);
+  Tuple *q4_auto_text_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant4AutoTextColor);
+  
+  if (q1_auto_text_tuple) {
+    s_auto_text_color[0] = (q1_auto_text_tuple->value->int32 == 1);
+    persist_write_bool(PERSIST_KEY_Q1_AUTO_TEXT, s_auto_text_color[0]);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q1 Auto Text: %d", s_auto_text_color[0]);
+  }
+  
+  if (q2_auto_text_tuple) {
+    s_auto_text_color[1] = (q2_auto_text_tuple->value->int32 == 1);
+    persist_write_bool(PERSIST_KEY_Q2_AUTO_TEXT, s_auto_text_color[1]);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q2 Auto Text: %d", s_auto_text_color[1]);
+  }
+  
+  if (q3_auto_text_tuple) {
+    s_auto_text_color[2] = (q3_auto_text_tuple->value->int32 == 1);
+    persist_write_bool(PERSIST_KEY_Q3_AUTO_TEXT, s_auto_text_color[2]);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q3 Auto Text: %d", s_auto_text_color[2]);
+  }
+  
+  if (q4_auto_text_tuple) {
+    s_auto_text_color[3] = (q4_auto_text_tuple->value->int32 == 1);
+    persist_write_bool(PERSIST_KEY_Q4_AUTO_TEXT, s_auto_text_color[3]);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q4 Auto Text: %d", s_auto_text_color[3]);
+  }
+  
+  // Read custom text color settings
+  Tuple *q1_text_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant1TextColor);
+  Tuple *q2_text_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant2TextColor);
+  Tuple *q3_text_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant3TextColor);
+  Tuple *q4_text_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant4TextColor);
+  
+  if (q1_text_color_tuple) {
+    s_custom_text_color[0] = GColorFromHEX(q1_text_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q1_TEXT_COLOR, q1_text_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q1 Text Color: 0x%x", (unsigned int)q1_text_color_tuple->value->int32);
+  }
+  
+  if (q2_text_color_tuple) {
+    s_custom_text_color[1] = GColorFromHEX(q2_text_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q2_TEXT_COLOR, q2_text_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q2 Text Color: 0x%x", (unsigned int)q2_text_color_tuple->value->int32);
+  }
+  
+  if (q3_text_color_tuple) {
+    s_custom_text_color[2] = GColorFromHEX(q3_text_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q3_TEXT_COLOR, q3_text_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q3 Text Color: 0x%x", (unsigned int)q3_text_color_tuple->value->int32);
+  }
+  
+  if (q4_text_color_tuple) {
+    s_custom_text_color[3] = GColorFromHEX(q4_text_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q4_TEXT_COLOR, q4_text_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q4 Text Color: 0x%x", (unsigned int)q4_text_color_tuple->value->int32);
+  }
 #endif
   
   // Redraw background if changed
@@ -700,6 +870,8 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     layer_mark_dirty(s_background_layer);
     // Update fonts for B&W platforms when background changes
     update_fonts_for_background();
+    // Update text colors when background changes
+    update_text_colors();
   }
   
   APP_LOG(APP_LOG_LEVEL_DEBUG, "=== inbox_received_callback END ===");
@@ -818,7 +990,7 @@ static void main_window_load(Window *window) {
   
   s_steps_label_layer = text_layer_create(GRect(72, 144, 72, 160));
   text_layer_set_background_color(s_steps_label_layer, GColorClear);
-  text_layer_set_text_color(s_steps_label_layer, GColorDarkGray);
+  text_layer_set_text_color(s_steps_label_layer, GColorBlack);
   text_layer_set_font(s_steps_label_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
   text_layer_set_text_alignment(s_steps_label_layer, GTextAlignmentCenter);
   text_layer_set_text(s_steps_label_layer, "STEPS");
@@ -900,6 +1072,30 @@ static void init() {
     GColorFromHEX(persist_read_int(PERSIST_KEY_Q3_COLOR)) : GColorLightGray;
   s_quadrant_colors[3] = persist_exists(PERSIST_KEY_Q4_COLOR) ? 
     GColorFromHEX(persist_read_int(PERSIST_KEY_Q4_COLOR)) : GColorLightGray;
+  
+  // Load persisted auto text color settings (default to true)
+  if (persist_exists(PERSIST_KEY_Q1_AUTO_TEXT)) {
+    s_auto_text_color[0] = persist_read_bool(PERSIST_KEY_Q1_AUTO_TEXT);
+  }
+  if (persist_exists(PERSIST_KEY_Q2_AUTO_TEXT)) {
+    s_auto_text_color[1] = persist_read_bool(PERSIST_KEY_Q2_AUTO_TEXT);
+  }
+  if (persist_exists(PERSIST_KEY_Q3_AUTO_TEXT)) {
+    s_auto_text_color[2] = persist_read_bool(PERSIST_KEY_Q3_AUTO_TEXT);
+  }
+  if (persist_exists(PERSIST_KEY_Q4_AUTO_TEXT)) {
+    s_auto_text_color[3] = persist_read_bool(PERSIST_KEY_Q4_AUTO_TEXT);
+  }
+  
+  // Load persisted custom text colors (default to black)
+  s_custom_text_color[0] = persist_exists(PERSIST_KEY_Q1_TEXT_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q1_TEXT_COLOR)) : GColorBlack;
+  s_custom_text_color[1] = persist_exists(PERSIST_KEY_Q2_TEXT_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q2_TEXT_COLOR)) : GColorBlack;
+  s_custom_text_color[2] = persist_exists(PERSIST_KEY_Q3_TEXT_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q3_TEXT_COLOR)) : GColorBlack;
+  s_custom_text_color[3] = persist_exists(PERSIST_KEY_Q4_TEXT_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q4_TEXT_COLOR)) : GColorBlack;
 #endif
   
   // Create main window

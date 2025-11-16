@@ -252,6 +252,26 @@ Pebble.addEventListener('webviewclosed', function(e) {
     dictionary[MessageKeys.Quadrant4Color] = parseInt(settings.Quadrant4Color.value);
   }
   
+  // Send auto text color toggles (default to true if not set)
+  dictionary[MessageKeys.Quadrant1AutoTextColor] = (settings.Quadrant1AutoTextColor && settings.Quadrant1AutoTextColor.value !== false) ? 1 : 0;
+  dictionary[MessageKeys.Quadrant2AutoTextColor] = (settings.Quadrant2AutoTextColor && settings.Quadrant2AutoTextColor.value !== false) ? 1 : 0;
+  dictionary[MessageKeys.Quadrant3AutoTextColor] = (settings.Quadrant3AutoTextColor && settings.Quadrant3AutoTextColor.value !== false) ? 1 : 0;
+  dictionary[MessageKeys.Quadrant4AutoTextColor] = (settings.Quadrant4AutoTextColor && settings.Quadrant4AutoTextColor.value !== false) ? 1 : 0;
+  
+  // Send custom text colors if available (for color platforms)
+  if (settings.Quadrant1TextColor && settings.Quadrant1TextColor.value) {
+    dictionary[MessageKeys.Quadrant1TextColor] = parseInt(settings.Quadrant1TextColor.value);
+  }
+  if (settings.Quadrant2TextColor && settings.Quadrant2TextColor.value) {
+    dictionary[MessageKeys.Quadrant2TextColor] = parseInt(settings.Quadrant2TextColor.value);
+  }
+  if (settings.Quadrant3TextColor && settings.Quadrant3TextColor.value) {
+    dictionary[MessageKeys.Quadrant3TextColor] = parseInt(settings.Quadrant3TextColor.value);
+  }
+  if (settings.Quadrant4TextColor && settings.Quadrant4TextColor.value) {
+    dictionary[MessageKeys.Quadrant4TextColor] = parseInt(settings.Quadrant4TextColor.value);
+  }
+  
   console.log('Sending settings to watch: ' + JSON.stringify(dictionary));
   
   Pebble.sendAppMessage(dictionary,
