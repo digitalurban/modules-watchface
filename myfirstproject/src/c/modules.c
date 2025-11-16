@@ -119,7 +119,7 @@ static const GRect TIME_LAYOUTS[] = {
 
 // Relative positions for STATS module (relative to quadrant origin)
 static const GRect STATS_LAYOUTS[5] = {
-  {{14, 10}, {16, 26}},  // battery icon (centered: 72/2 - 16/2 = 14)
+  {{14, 8}, {16, 24}},   // battery icon (moved up 2px to align with text)
   {{32, 7}, {40, 29}},   // battery text (offset from icon)
   {{0, 34}, {72, 61}},   // steps count
   {{0, 60}, {72, 76}}    // steps label
