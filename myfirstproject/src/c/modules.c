@@ -3,6 +3,25 @@
 #include <string.h>
 #include "config.h"
 
+// Module types
+typedef enum {
+  MODULE_EMPTY = 0,
+  MODULE_DATE = 1,
+  MODULE_WEATHER = 2,
+  MODULE_TIME = 3,
+  MODULE_STATS = 4
+} ModuleType;
+
+// Persistence keys
+#define PERSIST_KEY_Q1_MODULE 100
+#define PERSIST_KEY_Q2_MODULE 101
+#define PERSIST_KEY_Q3_MODULE 102
+#define PERSIST_KEY_Q4_MODULE 103
+#define PERSIST_KEY_Q1_BACKGROUND 104
+#define PERSIST_KEY_Q2_BACKGROUND 105
+#define PERSIST_KEY_Q3_BACKGROUND 106
+#define PERSIST_KEY_Q4_BACKGROUND 107
+
 // UI Elements
 static Window *s_main_window;
 static Layer *s_background_layer;
@@ -46,20 +65,68 @@ static bool s_use_celsius = false;
 static int s_current_temperature = 0;
 static bool s_has_temperature = false;
 
+// Module assignments for each quadrant
+static ModuleType s_quadrant_modules[4] = {
+  MODULE_DATE,    // Q1 default
+  MODULE_WEATHER, // Q2 default
+  MODULE_TIME,    // Q3 default
+  MODULE_STATS    // Q4 default
+};
+
+// Background state for each quadrant (true = light gray, false = white)
+static bool s_quadrant_backgrounds[4] = {
+  false,  // Q1 default: white
+  true,   // Q2 default: light gray
+  true,   // Q3 default: light gray
+  false   // Q4 default: white
+};
+
+// Quadrant origins (x, y)
+static const GPoint QUADRANT_ORIGINS[4] = {
+  {0, 0},     // Q1 - Top Left
+  {72, 0},    // Q2 - Top Right
+  {0, 84},    // Q3 - Bottom Left
+  {72, 84}    // Q4 - Bottom Right
+};
+
+// Relative positions for DATE module (relative to quadrant origin)
+static const GRect DATE_LAYOUTS[3] = {
+  {{0, 3}, {72, 17}},   // day name
+  {{0, 15}, {72, 66}},  // day number
+  {{0, 62}, {72, 76}}   // month name
+};
+
+// Relative positions for WEATHER module (relative to quadrant origin)
+static const GRect WEATHER_LAYOUTS[3] = {
+  {{22, 2}, {28, 30}},  // icon (centered: 72/2 - 28/2 = 22)
+  {{0, 30}, {72, 58}},  // temperature
+  {{0, 55}, {72, 79}}   // condition
+};
+
+// Relative positions for TIME module (relative to quadrant origin)
+// Relative positioning templates for each module type
+static const GRect TIME_LAYOUTS[] = {
+  {{0, 0}, {72, 42}},   // Hour label
+  {{0, 34}, {72, 70}}   // Minute label (5px gap from hour)
+};
+
+// Relative positions for STATS module (relative to quadrant origin)
+static const GRect STATS_LAYOUTS[5] = {
+  {{14, 10}, {16, 26}},  // battery icon (centered: 72/2 - 16/2 = 14)
+  {{32, 7}, {40, 29}},   // battery text (offset from icon)
+  {{0, 34}, {72, 61}},   // steps count
+  {{0, 60}, {72, 76}}    // steps label
+};
+
 // Background layer update procedure
 static void background_layer_update_proc(Layer *layer, GContext *ctx) {
-  // GRect bounds = layer_get_bounds(layer);
-  
-  // Fill quadrant backgrounds
-  graphics_context_set_fill_color(ctx, GColorWhite);
-  graphics_fill_rect(ctx, GRect(0, 0, 72, 84), 0, GCornerNone); // Q1 - white
-  
-  graphics_context_set_fill_color(ctx, GColorLightGray);
-  graphics_fill_rect(ctx, GRect(72, 0, 72, 84), 0, GCornerNone); // Q2 - light gray
-  graphics_fill_rect(ctx, GRect(0, 84, 72, 84), 0, GCornerNone); // Q3 - light gray
-  
-  graphics_context_set_fill_color(ctx, GColorWhite);
-  graphics_fill_rect(ctx, GRect(72, 84, 72, 84), 0, GCornerNone); // Q4 - white
+  // Fill quadrant backgrounds based on settings
+  for (int q = 0; q < 4; q++) {
+    GPoint origin = QUADRANT_ORIGINS[q];
+    GColor color = s_quadrant_backgrounds[q] ? GColorLightGray : GColorWhite;
+    graphics_context_set_fill_color(ctx, color);
+    graphics_fill_rect(ctx, GRect(origin.x, origin.y, 72, 84), 0, GCornerNone);
+  }
   
   // Draw grid lines
   graphics_context_set_stroke_color(ctx, GColorBlack);
@@ -76,6 +143,115 @@ static void background_layer_update_proc(Layer *layer, GContext *ctx) {
 static void divider_layer_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_stroke_color(ctx, GColorBlack);
   graphics_draw_line(ctx, GPoint(6, 32), GPoint(66, 32)); // Relative to layer position
+}
+
+// Reposition layers based on module assignments
+static void reposition_layers() {
+  for (int q = 0; q < 4; q++) {
+    GPoint origin = QUADRANT_ORIGINS[q];
+    ModuleType module = s_quadrant_modules[q];
+    
+    switch (module) {
+      case MODULE_DATE:
+        layer_set_frame(text_layer_get_layer(s_day_name_layer), 
+          GRect(origin.x + DATE_LAYOUTS[0].origin.x, origin.y + DATE_LAYOUTS[0].origin.y,
+                DATE_LAYOUTS[0].size.w, DATE_LAYOUTS[0].size.h));
+        layer_set_frame(text_layer_get_layer(s_day_number_layer),
+          GRect(origin.x + DATE_LAYOUTS[1].origin.x, origin.y + DATE_LAYOUTS[1].origin.y,
+                DATE_LAYOUTS[1].size.w, DATE_LAYOUTS[1].size.h));
+        layer_set_frame(text_layer_get_layer(s_month_name_layer),
+          GRect(origin.x + DATE_LAYOUTS[2].origin.x, origin.y + DATE_LAYOUTS[2].origin.y,
+                DATE_LAYOUTS[2].size.w, DATE_LAYOUTS[2].size.h));
+        layer_set_hidden(text_layer_get_layer(s_day_name_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_day_number_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_month_name_layer), false);
+        break;
+        
+      case MODULE_WEATHER:
+        layer_set_frame(bitmap_layer_get_layer(s_weather_icon_layer),
+          GRect(origin.x + WEATHER_LAYOUTS[0].origin.x, origin.y + WEATHER_LAYOUTS[0].origin.y,
+                WEATHER_LAYOUTS[0].size.w, WEATHER_LAYOUTS[0].size.h));
+        layer_set_frame(text_layer_get_layer(s_temperature_layer),
+          GRect(origin.x + WEATHER_LAYOUTS[1].origin.x, origin.y + WEATHER_LAYOUTS[1].origin.y,
+                WEATHER_LAYOUTS[1].size.w, WEATHER_LAYOUTS[1].size.h));
+        layer_set_frame(text_layer_get_layer(s_weather_condition_layer),
+          GRect(origin.x + WEATHER_LAYOUTS[2].origin.x, origin.y + WEATHER_LAYOUTS[2].origin.y,
+                WEATHER_LAYOUTS[2].size.w, WEATHER_LAYOUTS[2].size.h));
+        layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_temperature_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_weather_condition_layer), false);
+        break;
+        
+      case MODULE_TIME:
+        layer_set_frame(text_layer_get_layer(s_hour_layer),
+          GRect(origin.x + TIME_LAYOUTS[0].origin.x, origin.y + TIME_LAYOUTS[0].origin.y,
+                TIME_LAYOUTS[0].size.w, TIME_LAYOUTS[0].size.h));
+        layer_set_frame(text_layer_get_layer(s_minute_layer),
+          GRect(origin.x + TIME_LAYOUTS[1].origin.x, origin.y + TIME_LAYOUTS[1].origin.y,
+                TIME_LAYOUTS[1].size.w, TIME_LAYOUTS[1].size.h));
+        layer_set_hidden(text_layer_get_layer(s_hour_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_minute_layer), false);
+        break;
+        
+      case MODULE_STATS:
+        layer_set_frame(bitmap_layer_get_layer(s_battery_icon_layer),
+          GRect(origin.x + STATS_LAYOUTS[0].origin.x, origin.y + STATS_LAYOUTS[0].origin.y,
+                STATS_LAYOUTS[0].size.w, STATS_LAYOUTS[0].size.h));
+        layer_set_frame(text_layer_get_layer(s_battery_text_layer),
+          GRect(origin.x + STATS_LAYOUTS[1].origin.x, origin.y + STATS_LAYOUTS[1].origin.y,
+                STATS_LAYOUTS[1].size.w, STATS_LAYOUTS[1].size.h));
+        layer_set_frame(text_layer_get_layer(s_steps_count_layer),
+          GRect(origin.x + STATS_LAYOUTS[2].origin.x, origin.y + STATS_LAYOUTS[2].origin.y,
+                STATS_LAYOUTS[2].size.w, STATS_LAYOUTS[2].size.h));
+        layer_set_frame(text_layer_get_layer(s_steps_label_layer),
+          GRect(origin.x + STATS_LAYOUTS[3].origin.x, origin.y + STATS_LAYOUTS[3].origin.y,
+                STATS_LAYOUTS[3].size.w, STATS_LAYOUTS[3].size.h));
+        layer_set_frame(s_divider_layer,
+          GRect(origin.x, origin.y, 72, 84));
+        layer_set_hidden(bitmap_layer_get_layer(s_battery_icon_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_battery_text_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_steps_count_layer), false);
+        layer_set_hidden(text_layer_get_layer(s_steps_label_layer), false);
+        layer_set_hidden(s_divider_layer, false);
+        break;
+        
+      case MODULE_EMPTY:
+      default:
+        // Hide all layers for empty quadrant
+        break;
+    }
+  }
+  
+  // Hide layers not assigned to any quadrant
+  bool date_assigned = false, weather_assigned = false, time_assigned = false, stats_assigned = false;
+  for (int q = 0; q < 4; q++) {
+    if (s_quadrant_modules[q] == MODULE_DATE) date_assigned = true;
+    if (s_quadrant_modules[q] == MODULE_WEATHER) weather_assigned = true;
+    if (s_quadrant_modules[q] == MODULE_TIME) time_assigned = true;
+    if (s_quadrant_modules[q] == MODULE_STATS) stats_assigned = true;
+  }
+  
+  if (!date_assigned) {
+    layer_set_hidden(text_layer_get_layer(s_day_name_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_day_number_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_month_name_layer), true);
+  }
+  if (!weather_assigned) {
+    layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_temperature_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_weather_condition_layer), true);
+  }
+  if (!time_assigned) {
+    layer_set_hidden(text_layer_get_layer(s_hour_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_minute_layer), true);
+  }
+  if (!stats_assigned) {
+    layer_set_hidden(bitmap_layer_get_layer(s_battery_icon_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_battery_text_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_steps_count_layer), true);
+    layer_set_hidden(text_layer_get_layer(s_steps_label_layer), true);
+    layer_set_hidden(s_divider_layer, true);
+  }
 }
 
 // Update time
@@ -330,6 +506,112 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
   }
   
+  // Read quadrant module assignments
+  Tuple *q1_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant1Module);
+  Tuple *q2_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant2Module);
+  Tuple *q3_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant3Module);
+  Tuple *q4_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant4Module);
+  
+  bool layout_changed = false;
+  
+  if (q1_tuple) {
+    ModuleType new_module = (ModuleType)q1_tuple->value->int32;
+    if (s_quadrant_modules[0] != new_module) {
+      s_quadrant_modules[0] = new_module;
+      persist_write_int(PERSIST_KEY_Q1_MODULE, new_module);
+      layout_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q1 Module: %d", new_module);
+    }
+  }
+  
+  if (q2_tuple) {
+    ModuleType new_module = (ModuleType)q2_tuple->value->int32;
+    if (s_quadrant_modules[1] != new_module) {
+      s_quadrant_modules[1] = new_module;
+      persist_write_int(PERSIST_KEY_Q2_MODULE, new_module);
+      layout_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q2 Module: %d", new_module);
+    }
+  }
+  
+  if (q3_tuple) {
+    ModuleType new_module = (ModuleType)q3_tuple->value->int32;
+    if (s_quadrant_modules[2] != new_module) {
+      s_quadrant_modules[2] = new_module;
+      persist_write_int(PERSIST_KEY_Q3_MODULE, new_module);
+      layout_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q3 Module: %d", new_module);
+    }
+  }
+  
+  if (q4_tuple) {
+    ModuleType new_module = (ModuleType)q4_tuple->value->int32;
+    if (s_quadrant_modules[3] != new_module) {
+      s_quadrant_modules[3] = new_module;
+      persist_write_int(PERSIST_KEY_Q4_MODULE, new_module);
+      layout_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q4 Module: %d", new_module);
+    }
+  }
+  
+  // Reposition layers if layout changed
+  if (layout_changed) {
+    reposition_layers();
+  }
+  
+  // Read quadrant background settings
+  Tuple *q1_bg_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant1Background);
+  Tuple *q2_bg_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant2Background);
+  Tuple *q3_bg_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant3Background);
+  Tuple *q4_bg_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant4Background);
+  
+  bool background_changed = false;
+  
+  if (q1_bg_tuple) {
+    bool new_bg = q1_bg_tuple->value->int32 == 1;
+    if (s_quadrant_backgrounds[0] != new_bg) {
+      s_quadrant_backgrounds[0] = new_bg;
+      persist_write_bool(PERSIST_KEY_Q1_BACKGROUND, new_bg);
+      background_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q1 Background: %d", new_bg);
+    }
+  }
+  
+  if (q2_bg_tuple) {
+    bool new_bg = q2_bg_tuple->value->int32 == 1;
+    if (s_quadrant_backgrounds[1] != new_bg) {
+      s_quadrant_backgrounds[1] = new_bg;
+      persist_write_bool(PERSIST_KEY_Q2_BACKGROUND, new_bg);
+      background_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q2 Background: %d", new_bg);
+    }
+  }
+  
+  if (q3_bg_tuple) {
+    bool new_bg = q3_bg_tuple->value->int32 == 1;
+    if (s_quadrant_backgrounds[2] != new_bg) {
+      s_quadrant_backgrounds[2] = new_bg;
+      persist_write_bool(PERSIST_KEY_Q3_BACKGROUND, new_bg);
+      background_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q3 Background: %d", new_bg);
+    }
+  }
+  
+  if (q4_bg_tuple) {
+    bool new_bg = q4_bg_tuple->value->int32 == 1;
+    if (s_quadrant_backgrounds[3] != new_bg) {
+      s_quadrant_backgrounds[3] = new_bg;
+      persist_write_bool(PERSIST_KEY_Q4_BACKGROUND, new_bg);
+      background_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Q4 Background: %d", new_bg);
+    }
+  }
+  
+  // Redraw background if changed
+  if (background_changed) {
+    layer_mark_dirty(s_background_layer);
+  }
+  
   APP_LOG(APP_LOG_LEVEL_DEBUG, "=== inbox_received_callback END ===");
 }
 
@@ -402,15 +684,15 @@ static void main_window_load(Window *window) {
   text_layer_set_text_alignment(s_weather_condition_layer, GTextAlignmentCenter);
   layer_add_child(window_layer, text_layer_get_layer(s_weather_condition_layer));
   
-  // QUADRANT 3 - TIME (Bottom Left) - centered vertically
-  s_hour_layer = text_layer_create(GRect(0, 78, 72, 120));
+  // QUADRANT 3 - TIME (Bottom Left) - centered vertically within Q3 bounds
+  s_hour_layer = text_layer_create(GRect(0, 90, 72, 126));
   text_layer_set_background_color(s_hour_layer, GColorClear);
   text_layer_set_text_color(s_hour_layer, GColorBlack);
   text_layer_set_font(s_hour_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
   text_layer_set_text_alignment(s_hour_layer, GTextAlignmentCenter);
   layer_add_child(window_layer, text_layer_get_layer(s_hour_layer));
   
-  s_minute_layer = text_layer_create(GRect(0, 120, 72, 162));
+  s_minute_layer = text_layer_create(GRect(0, 128, 72, 164));
   text_layer_set_background_color(s_minute_layer, GColorClear);
   text_layer_set_text_color(s_minute_layer, GColorDarkGray);
   text_layer_set_font(s_minute_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
@@ -457,6 +739,9 @@ static void main_window_load(Window *window) {
   update_battery();
   update_weather();
   update_steps();
+  
+  // Apply initial layout
+  reposition_layers();
 }
 
 // Main window unload
@@ -487,6 +772,34 @@ static void main_window_unload(Window *window) {
 
 // Init
 static void init() {
+  // Load persisted module assignments
+  if (persist_exists(PERSIST_KEY_Q1_MODULE)) {
+    s_quadrant_modules[0] = (ModuleType)persist_read_int(PERSIST_KEY_Q1_MODULE);
+  }
+  if (persist_exists(PERSIST_KEY_Q2_MODULE)) {
+    s_quadrant_modules[1] = (ModuleType)persist_read_int(PERSIST_KEY_Q2_MODULE);
+  }
+  if (persist_exists(PERSIST_KEY_Q3_MODULE)) {
+    s_quadrant_modules[2] = (ModuleType)persist_read_int(PERSIST_KEY_Q3_MODULE);
+  }
+  if (persist_exists(PERSIST_KEY_Q4_MODULE)) {
+    s_quadrant_modules[3] = (ModuleType)persist_read_int(PERSIST_KEY_Q4_MODULE);
+  }
+  
+  // Load persisted background settings
+  if (persist_exists(PERSIST_KEY_Q1_BACKGROUND)) {
+    s_quadrant_backgrounds[0] = persist_read_bool(PERSIST_KEY_Q1_BACKGROUND);
+  }
+  if (persist_exists(PERSIST_KEY_Q2_BACKGROUND)) {
+    s_quadrant_backgrounds[1] = persist_read_bool(PERSIST_KEY_Q2_BACKGROUND);
+  }
+  if (persist_exists(PERSIST_KEY_Q3_BACKGROUND)) {
+    s_quadrant_backgrounds[2] = persist_read_bool(PERSIST_KEY_Q3_BACKGROUND);
+  }
+  if (persist_exists(PERSIST_KEY_Q4_BACKGROUND)) {
+    s_quadrant_backgrounds[3] = persist_read_bool(PERSIST_KEY_Q4_BACKGROUND);
+  }
+  
   // Create main window
   s_main_window = window_create();
   window_set_window_handlers(s_main_window, (WindowHandlers) {

@@ -192,11 +192,51 @@ Pebble.addEventListener('webviewclosed', function(e) {
   var settings = JSON.parse(e.response);
   console.log('Settings received: ' + JSON.stringify(settings));
   
+  // Validate module assignments - each module can only appear once
+  var modules = [
+    parseInt((settings.Quadrant1Module && settings.Quadrant1Module.value) || '1'),
+    parseInt((settings.Quadrant2Module && settings.Quadrant2Module.value) || '2'),
+    parseInt((settings.Quadrant3Module && settings.Quadrant3Module.value) || '3'),
+    parseInt((settings.Quadrant4Module && settings.Quadrant4Module.value) || '4')
+  ];
+  
+  // Check for duplicate non-empty modules
+  var seen = {};
+  var hasDuplicate = false;
+  var duplicateModule = '';
+  
+  for (var i = 0; i < modules.length; i++) {
+    var module = modules[i];
+    if (module !== 0) { // Skip empty modules
+      if (seen[module]) {
+        hasDuplicate = true;
+        var moduleNames = ['', 'Date', 'Weather', 'Time', 'Stats'];
+        duplicateModule = moduleNames[module] || 'Unknown';
+        break;
+      }
+      seen[module] = true;
+    }
+  }
+  
+  if (hasDuplicate) {
+    console.log('ERROR: Duplicate module detected: ' + duplicateModule);
+    alert('Error: "' + duplicateModule + '" module is assigned to multiple quadrants. Each module can only appear once.');
+    return;
+  }
+  
   // Send settings to watch
   var dictionary = {};
   dictionary[MessageKeys.TemperatureUnit] = (settings.TemperatureUnit && settings.TemperatureUnit.value) ? 1 : 0;
   dictionary[MessageKeys.UseGPS] = (settings.UseGPS && settings.UseGPS.value !== false) ? 1 : 0;
   dictionary[MessageKeys.ZipCode] = (settings.ZipCode && settings.ZipCode.value) || '';
+  dictionary[MessageKeys.Quadrant1Module] = modules[0];
+  dictionary[MessageKeys.Quadrant2Module] = modules[1];
+  dictionary[MessageKeys.Quadrant3Module] = modules[2];
+  dictionary[MessageKeys.Quadrant4Module] = modules[3];
+  dictionary[MessageKeys.Quadrant1Background] = (settings.Quadrant1Background && settings.Quadrant1Background.value) ? 1 : 0;
+  dictionary[MessageKeys.Quadrant2Background] = (settings.Quadrant2Background && settings.Quadrant2Background.value) ? 1 : 0;
+  dictionary[MessageKeys.Quadrant3Background] = (settings.Quadrant3Background && settings.Quadrant3Background.value) ? 1 : 0;
+  dictionary[MessageKeys.Quadrant4Background] = (settings.Quadrant4Background && settings.Quadrant4Background.value) ? 1 : 0;
   
   console.log('Sending settings to watch: ' + JSON.stringify(dictionary));
   

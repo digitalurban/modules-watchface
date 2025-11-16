@@ -31,7 +31,11 @@
       "Quadrant1Module",
       "Quadrant2Module",
       "Quadrant3Module",
-      "Quadrant4Module"
+      "Quadrant4Module",
+      "Quadrant1Background",
+      "Quadrant2Background",
+      "Quadrant3Background",
+      "Quadrant4Background"
     ],
     "resources": {
       "media": [
