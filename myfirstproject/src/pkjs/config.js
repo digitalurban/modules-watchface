@@ -110,35 +110,77 @@ module.exports = [
       },
       {
         "type": "text",
-        "defaultValue": "Enable light gray background for each quadrant (off = white)."
+        "defaultValue": function(config) {
+          var platform = config.platform;
+          if (platform && (platform === 'basalt' || platform === 'chalk' || platform === 'diorite' || platform === 'emery')) {
+            return "Enable background colors for each quadrant. Choose custom colors below.";
+          }
+          return "Enable light gray background for each quadrant (off = white).";
+        }
       },
       {
         "type": "toggle",
         "messageKey": "Quadrant1Background",
         "label": "Q1 - Top Left Background",
-        "description": "Enable light gray background",
+        "description": "Enable custom background",
         "defaultValue": false
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant1Color",
+        "label": "Q1 Background Color",
+        "defaultValue": "0xAAAAAA",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
       },
       {
         "type": "toggle",
         "messageKey": "Quadrant2Background",
         "label": "Q2 - Top Right Background",
-        "description": "Enable light gray background",
+        "description": "Enable custom background",
         "defaultValue": true
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant2Color",
+        "label": "Q2 Background Color",
+        "defaultValue": "0xAAAAAA",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
       },
       {
         "type": "toggle",
         "messageKey": "Quadrant3Background",
         "label": "Q3 - Bottom Left Background",
-        "description": "Enable light gray background",
+        "description": "Enable custom background",
         "defaultValue": true
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant3Color",
+        "label": "Q3 Background Color",
+        "defaultValue": "0xAAAAAA",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
       },
       {
         "type": "toggle",
         "messageKey": "Quadrant4Background",
         "label": "Q4 - Bottom Right Background",
-        "description": "Enable light gray background",
+        "description": "Enable custom background",
         "defaultValue": false
+      },
+      {
+        "type": "color",
+        "messageKey": "Quadrant4Color",
+        "label": "Q4 Background Color",
+        "defaultValue": "0xAAAAAA",
+        "sunlight": false,
+        "allowGray": true,
+        "capabilities": ['COLOR']
       }
     ]
   },

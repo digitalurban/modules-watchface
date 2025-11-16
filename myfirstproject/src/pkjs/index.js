@@ -238,6 +238,20 @@ Pebble.addEventListener('webviewclosed', function(e) {
   dictionary[MessageKeys.Quadrant3Background] = (settings.Quadrant3Background && settings.Quadrant3Background.value) ? 1 : 0;
   dictionary[MessageKeys.Quadrant4Background] = (settings.Quadrant4Background && settings.Quadrant4Background.value) ? 1 : 0;
   
+  // Send color values if available (for color platforms)
+  if (settings.Quadrant1Color && settings.Quadrant1Color.value) {
+    dictionary[MessageKeys.Quadrant1Color] = parseInt(settings.Quadrant1Color.value);
+  }
+  if (settings.Quadrant2Color && settings.Quadrant2Color.value) {
+    dictionary[MessageKeys.Quadrant2Color] = parseInt(settings.Quadrant2Color.value);
+  }
+  if (settings.Quadrant3Color && settings.Quadrant3Color.value) {
+    dictionary[MessageKeys.Quadrant3Color] = parseInt(settings.Quadrant3Color.value);
+  }
+  if (settings.Quadrant4Color && settings.Quadrant4Color.value) {
+    dictionary[MessageKeys.Quadrant4Color] = parseInt(settings.Quadrant4Color.value);
+  }
+  
   console.log('Sending settings to watch: ' + JSON.stringify(dictionary));
   
   Pebble.sendAppMessage(dictionary,

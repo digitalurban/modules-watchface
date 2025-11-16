@@ -35,7 +35,11 @@
       "Quadrant1Background",
       "Quadrant2Background",
       "Quadrant3Background",
-      "Quadrant4Background"
+      "Quadrant4Background",
+      "Quadrant1Color",
+      "Quadrant2Color",
+      "Quadrant3Color",
+      "Quadrant4Color"
     ],
     "resources": {
       "media": [

@@ -21,6 +21,10 @@ typedef enum {
 #define PERSIST_KEY_Q2_BACKGROUND 105
 #define PERSIST_KEY_Q3_BACKGROUND 106
 #define PERSIST_KEY_Q4_BACKGROUND 107
+#define PERSIST_KEY_Q1_COLOR 108
+#define PERSIST_KEY_Q2_COLOR 109
+#define PERSIST_KEY_Q3_COLOR 110
+#define PERSIST_KEY_Q4_COLOR 111
 
 // UI Elements
 static Window *s_main_window;
@@ -81,6 +85,9 @@ static bool s_quadrant_backgrounds[4] = {
   false   // Q4 default: white
 };
 
+// Color values for each quadrant (stored as 32-bit integer in ARGB8 format)
+static GColor s_quadrant_colors[4];
+
 // Quadrant origins (x, y)
 static const GPoint QUADRANT_ORIGINS[4] = {
   {0, 0},     // Q1 - Top Left
@@ -123,7 +130,16 @@ static void background_layer_update_proc(Layer *layer, GContext *ctx) {
   // Fill quadrant backgrounds based on settings
   for (int q = 0; q < 4; q++) {
     GPoint origin = QUADRANT_ORIGINS[q];
-    GColor color = s_quadrant_backgrounds[q] ? GColorLightGray : GColorWhite;
+    GColor color;
+    
+#ifdef PBL_COLOR
+    // On color platforms, use custom color if background is enabled
+    color = s_quadrant_backgrounds[q] ? s_quadrant_colors[q] : GColorWhite;
+#else
+    // On B&W platforms, use light gray or white
+    color = s_quadrant_backgrounds[q] ? GColorLightGray : GColorWhite;
+#endif
+    
     graphics_context_set_fill_color(ctx, color);
     graphics_fill_rect(ctx, GRect(origin.x, origin.y, 72, 84), 0, GCornerNone);
   }
@@ -607,6 +623,42 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
   }
   
+#ifdef PBL_COLOR
+  // Read quadrant color settings (color platforms only)
+  Tuple *q1_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant1Color);
+  Tuple *q2_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant2Color);
+  Tuple *q3_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant3Color);
+  Tuple *q4_color_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant4Color);
+  
+  if (q1_color_tuple) {
+    s_quadrant_colors[0] = GColorFromHEX(q1_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q1_COLOR, q1_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q1 Color: 0x%x", (unsigned int)q1_color_tuple->value->int32);
+  }
+  
+  if (q2_color_tuple) {
+    s_quadrant_colors[1] = GColorFromHEX(q2_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q2_COLOR, q2_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q2 Color: 0x%x", (unsigned int)q2_color_tuple->value->int32);
+  }
+  
+  if (q3_color_tuple) {
+    s_quadrant_colors[2] = GColorFromHEX(q3_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q3_COLOR, q3_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q3 Color: 0x%x", (unsigned int)q3_color_tuple->value->int32);
+  }
+  
+  if (q4_color_tuple) {
+    s_quadrant_colors[3] = GColorFromHEX(q4_color_tuple->value->int32);
+    persist_write_int(PERSIST_KEY_Q4_COLOR, q4_color_tuple->value->int32);
+    background_changed = true;
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Q4 Color: 0x%x", (unsigned int)q4_color_tuple->value->int32);
+  }
+#endif
+  
   // Redraw background if changed
   if (background_changed) {
     layer_mark_dirty(s_background_layer);
@@ -799,6 +851,18 @@ static void init() {
   if (persist_exists(PERSIST_KEY_Q4_BACKGROUND)) {
     s_quadrant_backgrounds[3] = persist_read_bool(PERSIST_KEY_Q4_BACKGROUND);
   }
+  
+#ifdef PBL_COLOR
+  // Load persisted colors (default to light gray if not set)
+  s_quadrant_colors[0] = persist_exists(PERSIST_KEY_Q1_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q1_COLOR)) : GColorLightGray;
+  s_quadrant_colors[1] = persist_exists(PERSIST_KEY_Q2_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q2_COLOR)) : GColorLightGray;
+  s_quadrant_colors[2] = persist_exists(PERSIST_KEY_Q3_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q3_COLOR)) : GColorLightGray;
+  s_quadrant_colors[3] = persist_exists(PERSIST_KEY_Q4_COLOR) ? 
+    GColorFromHEX(persist_read_int(PERSIST_KEY_Q4_COLOR)) : GColorLightGray;
+#endif
   
   // Create main window
   s_main_window = window_create();
