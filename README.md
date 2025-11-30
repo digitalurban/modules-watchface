@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # ⌚ Modules Watchface
 
@@ -221,25 +221,23 @@ Each quadrant offers:
 
 ### From Rebble App Store
 
-<!-- REBBLE_APPSTORE_LINK_PLACEHOLDER -->
-> 🔗 **[Get Modules on Rebble App Store](#)**
+<!-- REBBLE_APPSTORE_LINK: Replace the URL below with your actual Rebble app store link -->
+> 🔗 **Rebble App Store**: *Coming Soon*
 > 
-> *Link coming soon - watchface pending approval*
-<!-- END_REBBLE_APPSTORE_LINK_PLACEHOLDER -->
+> Once approved, the watchface will be available at: `https://apps.rebble.io/en_US/application/[APP_ID]`
 
 ### From Pebble App Store (Legacy)
 
-<!-- PEBBLE_APPSTORE_LINK_PLACEHOLDER -->
-> 🔗 **[View on Pebble App Store](#)**
+<!-- PEBBLE_APPSTORE_LINK: The original Pebble App Store is discontinued -->
+> 🔗 **Pebble App Store**: *No longer available*
 > 
-> *The original Pebble App Store is no longer operational. Please use Rebble services.*
-<!-- END_PEBBLE_APPSTORE_LINK_PLACEHOLDER -->
+> The original Pebble App Store was discontinued in 2018. Please use [Rebble](https://rebble.io/) services instead.
 
 ### Manual Installation (Developers)
 
 ```bash
 # Clone the repository
-git clone https://github.com/ClickCalickClick/modules-watchface.git
+git clone <repository-url>
 cd modules-watchface/myfirstproject
 
 # Install dependencies
@@ -333,4 +331,3 @@ This project is open source and available under the [MIT License](LICENSE).
 [![GitHub Stars](https://img.shields.io/github/stars/ClickCalickClick/modules-watchface?style=social)](https://github.com/ClickCalickClick/modules-watchface)
 
 </div>
-]]>
