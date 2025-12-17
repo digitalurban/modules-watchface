@@ -10,6 +10,30 @@ var WEATHER_API_URL = 'http://api.weatherapi.com/v1/current.json';
 var MessageKeys = require('message_keys');
 console.log('MessageKeys loaded: ' + JSON.stringify(MessageKeys));
 
+// Helpers to read settings regardless of Clay storage shape
+function getBool(settings, key, defaultValue) {
+  var v = settings && settings[key];
+  if (v && typeof v === 'object' && v !== null && 'value' in v) {
+    v = v.value;
+  }
+  if (v === undefined || v === null) return defaultValue;
+  if (typeof v === 'string') {
+    var lower = v.toLowerCase();
+    if (lower === 'true') return true;
+    if (lower === 'false') return false;
+  }
+  return !!v;
+}
+
+function getString(settings, key, defaultValue) {
+  var v = settings && settings[key];
+  if (v && typeof v === 'object' && v !== null && 'value' in v) {
+    v = v.value;
+  }
+  if (v === undefined || v === null) return defaultValue;
+  return String(v);
+}
+
 // Map WeatherAPI condition codes to watch icon IDs (0-7)
 function getWeatherIconFromCode(code, conditionText) {
   // Sunny/Clear (icon 0)
@@ -118,7 +142,7 @@ function locationSuccess(pos) {
   console.log('Got location: ' + coords);
   
   var settings = JSON.parse(localStorage.getItem('clay-settings')) || {};
-  var useCelsius = (settings.TemperatureUnit && settings.TemperatureUnit.value) || false;
+  var useCelsius = getBool(settings, 'TemperatureUnit', false);
   
   fetchWeather(coords, useCelsius);
 }
@@ -128,8 +152,8 @@ function locationError(err) {
   
   // Fall back to ZIP code if available
   var settings = JSON.parse(localStorage.getItem('clay-settings')) || {};
-  var zipCode = (settings.ZipCode && settings.ZipCode.value) || '';
-  var useCelsius = (settings.TemperatureUnit && settings.TemperatureUnit.value) || false;
+  var zipCode = getString(settings, 'ZipCode', '');
+  var useCelsius = getBool(settings, 'TemperatureUnit', false);
   
   if (zipCode && zipCode.length > 0) {
     fetchWeather(zipCode, useCelsius);
@@ -140,9 +164,9 @@ function locationError(err) {
 
 function getWeather() {
   var settings = JSON.parse(localStorage.getItem('clay-settings')) || {};
-  var useGPS = (settings.UseGPS && settings.UseGPS.value !== false); // Default to true
-  var zipCode = (settings.ZipCode && settings.ZipCode.value) || '';
-  var useCelsius = (settings.TemperatureUnit && settings.TemperatureUnit.value) || false;
+  var useGPS = getBool(settings, 'UseGPS', true); // Default to true
+  var zipCode = getString(settings, 'ZipCode', '');
+  var useCelsius = getBool(settings, 'TemperatureUnit', false);
   
   console.log('Getting weather - GPS: ' + useGPS + ', ZIP: ' + zipCode + ', Celsius: ' + useCelsius);
   
@@ -190,6 +214,12 @@ Pebble.addEventListener('webviewclosed', function(e) {
   
   // Settings were saved, send them to the watch
   var settings = JSON.parse(e.response);
+  // Persist the latest settings so periodic updates use the correct values
+  try {
+    localStorage.setItem('clay-settings', JSON.stringify(settings));
+  } catch (err) {
+    console.log('Failed to persist settings: ' + err);
+  }
   console.log('Settings received: ' + JSON.stringify(settings));
   
   // Validate module assignments - each module can only appear once
@@ -279,7 +309,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
       console.log('Settings sent successfully');
       
       // Fetch weather with the updated settings from the event (not localStorage yet)
-      var useCelsius = (settings.TemperatureUnit && settings.TemperatureUnit.value) || false;
+      var useCelsius = !!(settings.TemperatureUnit && settings.TemperatureUnit.value);
       var useGPS = (settings.UseGPS && settings.UseGPS.value !== false);
       var zipCode = (settings.ZipCode && settings.ZipCode.value) || '';
       
