@@ -238,14 +238,18 @@ Pebble.addEventListener('appmessage', function(e) {
 
 // Listen for when settings are saved
 Pebble.addEventListener('webviewclosed', function(e) {
+  console.log('=== webviewclosed event fired ===');
+  console.log('Event response: ' + (e ? JSON.stringify(e.response).substring(0, 200) : 'no response'));
   if (e && !e.response) {
+    console.log('No response, returning');
     return;
   }
   
   // Settings were saved, update global state and persist
   var settings = JSON.parse(e.response);
   globalSettings = settings;  // Update global state immediately
-  console.log('Settings received and updated globally: ' + JSON.stringify(settings));
+  console.log('Settings received and updated globally: ' + JSON.stringify(settings).substring(0, 200));
+  console.log('globalSettings.TemperatureUnit: ' + JSON.stringify(globalSettings.TemperatureUnit));
   
   // Persist the latest settings so periodic updates use the correct values
   try {
