@@ -99,6 +99,10 @@ function getWeatherIconFromCode(code, conditionText) {
 }
 
 function fetchWeather(location) {
+  // Read current settings from localStorage to ensure we have latest values
+  var stored = localStorage.getItem("clay-settings");
+  var currentSettings = stored ? JSON.parse(stored) : {};
+  var useCelsius = getBool(currentSettings, "TemperatureUnit", false);
   console.log('Fetching weather for: ' + location + ', useCelsius: ' + useCelsius);
   
   var url = WEATHER_API_URL + '?key=' + WEATHER_API_KEY + '&q=' + encodeURIComponent(location);
@@ -130,9 +134,9 @@ function fetchWeather(location) {
         dictionary[MessageKeys.Condition] = condition;
         dictionary[MessageKeys.WeatherIcon] = iconCode;
         // Also send the temperature unit setting so watch can convert properly
-        var tempUnitValue = getBool(globalSettings, 'TemperatureUnit', false) ? 1 : 0;
+        var tempUnitValue = getBool(currentSettings, 'TemperatureUnit', false) ? 1 : 0;
         dictionary[MessageKeys.TemperatureUnit] = tempUnitValue;
-        console.log('Global settings: ' + JSON.stringify(globalSettings));
+        console.log('Current settings: ' + JSON.stringify(currentSettings));
         console.log('getBool result: ' + getBool(globalSettings, 'TemperatureUnit', false));
         console.log('TemperatureUnit value to send: ' + tempUnitValue);
         console.log('Full dictionary: ' + JSON.stringify(dictionary));
@@ -174,7 +178,7 @@ function locationError(err) {
   console.log('Location error: ' + err.message);
   
   // Fall back to ZIP code if available
-  var zipCode = getString(globalSettings, 'ZipCode', '');
+  var zipCode = getString(currentSettings, 'ZipCode', '');
   
   if (zipCode && zipCode.length > 0) {
     fetchWeather(zipCode);
@@ -184,8 +188,10 @@ function locationError(err) {
 }
 
 function getWeather() {
-  var useGPS = getBool(globalSettings, 'UseGPS', true); // Default to true
-  var zipCode = getString(globalSettings, 'ZipCode', '');
+  var stored = localStorage.getItem("clay-settings");
+  var currentSettings = stored ? JSON.parse(stored) : {};
+  var useGPS = getBool(currentSettings, 'UseGPS', true); // Default to true
+  var zipCode = getString(currentSettings, 'ZipCode', '');
   
   
   console.log('Getting weather - GPS: ' + useGPS + ', ZIP: ' + zipCode + ', Celsius: ' + useCelsius);
