@@ -33,6 +33,7 @@ typedef enum {
 #define PERSIST_KEY_Q2_TEXT_COLOR 117
 #define PERSIST_KEY_Q3_TEXT_COLOR 118
 #define PERSIST_KEY_Q4_TEXT_COLOR 119
+#define PERSIST_KEY_ALT_WEATHER_LAYOUT 120
 
 // UI Elements
 static Window *s_main_window;
@@ -74,6 +75,7 @@ static char s_weather_condition_buffer[16];
 
 // Settings
 static bool s_use_celsius = false;
+static bool s_alt_weather_layout = false;
 static int s_current_temperature = 0;
 static bool s_has_temperature = false;
 
@@ -166,9 +168,15 @@ static const GRect DATE_LAYOUTS[3] = {
 };
 
 // Relative positions for WEATHER module (relative to quadrant origin)
-static const GRect WEATHER_LAYOUTS[3] = {
+static const GRect WEATHER_LAYOUTS_DEFAULT[3] = {
+  {{9, 0}, {54, 54}},   // icon (centered: 72/2 - 54/2 = 9)
+  {{0, 54}, {72, 30}},  // temperature (starts below icon, height to bottom)
+  {{0, 84}, {72, 0}}    // condition (hidden)
+};
+
+static const GRect WEATHER_LAYOUTS_ALT[3] = {
   {{9, 5}, {54, 54}},   // icon (centered: 72/2 - 54/2 = 9)
-  {{0, 45}, {72, 30}},  // temperature (starts below icon, height to bottom)
+  {{0, 50}, {72, 30}},  // temperature (starts below icon, height to bottom)
   {{0, 84}, {72, 0}}    // condition (hidden)
 };
 
@@ -315,20 +323,22 @@ static void reposition_layers() {
         layer_set_hidden(text_layer_get_layer(s_month_name_layer), false);
         break;
         
-      case MODULE_WEATHER:
+      case MODULE_WEATHER: {
+        const GRect *layout = s_alt_weather_layout ? WEATHER_LAYOUTS_ALT : WEATHER_LAYOUTS_DEFAULT;
         layer_set_frame(bitmap_layer_get_layer(s_weather_icon_layer),
-          GRect(origin.x + WEATHER_LAYOUTS[0].origin.x, origin.y + WEATHER_LAYOUTS[0].origin.y,
-                WEATHER_LAYOUTS[0].size.w, WEATHER_LAYOUTS[0].size.h));
+          GRect(origin.x + layout[0].origin.x, origin.y + layout[0].origin.y,
+                layout[0].size.w, layout[0].size.h));
         layer_set_frame(text_layer_get_layer(s_temperature_layer),
-          GRect(origin.x + WEATHER_LAYOUTS[1].origin.x, origin.y + WEATHER_LAYOUTS[1].origin.y,
-                WEATHER_LAYOUTS[1].size.w, WEATHER_LAYOUTS[1].size.h));
+          GRect(origin.x + layout[1].origin.x, origin.y + layout[1].origin.y,
+                layout[1].size.w, layout[1].size.h));
         layer_set_frame(text_layer_get_layer(s_weather_condition_layer),
-          GRect(origin.x + WEATHER_LAYOUTS[2].origin.x, origin.y + WEATHER_LAYOUTS[2].origin.y,
-                WEATHER_LAYOUTS[2].size.w, WEATHER_LAYOUTS[2].size.h));
+          GRect(origin.x + layout[2].origin.x, origin.y + layout[2].origin.y,
+                layout[2].size.w, layout[2].size.h));
         layer_set_hidden(bitmap_layer_get_layer(s_weather_icon_layer), false);
         layer_set_hidden(text_layer_get_layer(s_temperature_layer), false);
         layer_set_hidden(text_layer_get_layer(s_weather_condition_layer), false);
         break;
+      }
         
       case MODULE_TIME:
         layer_set_frame(text_layer_get_layer(s_hour_layer),
@@ -706,6 +716,18 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
   Tuple *q4_tuple = dict_find(iterator, MESSAGE_KEY_Quadrant4Module);
   
   bool layout_changed = false;
+
+  // Read Alt Weather Layout setting
+  Tuple *alt_layout_tuple = dict_find(iterator, MESSAGE_KEY_AltWeatherLayout);
+  if (alt_layout_tuple) {
+    bool new_layout = alt_layout_tuple->value->int32 == 1;
+    if (s_alt_weather_layout != new_layout) {
+      s_alt_weather_layout = new_layout;
+      persist_write_bool(PERSIST_KEY_ALT_WEATHER_LAYOUT, s_alt_weather_layout);
+      layout_changed = true;
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Alt Weather Layout: %d", s_alt_weather_layout);
+    }
+  }
   
   if (q1_tuple) {
     ModuleType new_module = (ModuleType)q1_tuple->value->int32;
@@ -1141,6 +1163,11 @@ static void init() {
   if (persist_exists(1)) {
     s_use_celsius = persist_read_bool(1);
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Loaded persisted s_use_celsius: %d", s_use_celsius);
+  }
+  
+  if (persist_exists(PERSIST_KEY_ALT_WEATHER_LAYOUT)) {
+    s_alt_weather_layout = persist_read_bool(PERSIST_KEY_ALT_WEATHER_LAYOUT);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Loaded persisted s_alt_weather_layout: %d", s_alt_weather_layout);
   }
   
   // Create main window
