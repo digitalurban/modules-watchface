@@ -78,6 +78,7 @@ static bool s_use_celsius = false;
 static bool s_alt_weather_layout = false;
 static int s_current_temperature = 0;
 static bool s_has_temperature = false;
+static int s_current_icon_id = -1;
 
 // Module assignments for each quadrant
 static ModuleType s_quadrant_modules[4] = {
@@ -169,14 +170,14 @@ static const GRect DATE_LAYOUTS[3] = {
 
 // Relative positions for WEATHER module (relative to quadrant origin)
 static const GRect WEATHER_LAYOUTS_DEFAULT[3] = {
-  {{9, 0}, {54, 54}},   // icon (centered: 72/2 - 54/2 = 9)
-  {{0, 54}, {72, 30}},  // temperature (starts below icon, height to bottom)
-  {{0, 84}, {72, 0}}    // condition (hidden)
+  {{22, 2}, {28, 30}},  // icon (centered: 72/2 - 28/2 = 22)
+  {{0, 30}, {72, 58}},  // temperature
+  {{0, 55}, {72, 79}}   // condition
 };
 
 static const GRect WEATHER_LAYOUTS_ALT[3] = {
-  {{9, 5}, {54, 54}},   // icon (centered: 72/2 - 54/2 = 9)
-  {{0, 50}, {72, 30}},  // temperature (starts below icon, height to bottom)
+  {{9, 0}, {54, 54}},   // icon (centered: 72/2 - 54/2 = 9)
+  {{0, 45}, {72, 30}},  // temperature (moved up to 45)
   {{0, 84}, {72, 0}}    // condition (hidden)
 };
 
@@ -600,6 +601,50 @@ static void battery_callback(BatteryChargeState charge_state) {
   update_battery();
 }
 
+static uint32_t get_resource_id_for_weather_icon(int icon_id) {
+  if (s_alt_weather_layout) {
+    switch(icon_id) {
+      case 0: return RESOURCE_ID_ICON_WEATHER_SUNNY_ALT;
+      case 1: return RESOURCE_ID_ICON_WEATHER_PARTLY_CLOUDY_ALT;
+      case 2: return RESOURCE_ID_ICON_WEATHER_CLOUDY_ALT;
+      case 3: return RESOURCE_ID_ICON_WEATHER_LIGHT_RAIN_ALT;
+      case 4: return RESOURCE_ID_ICON_WEATHER_HEAVY_RAIN_ALT;
+      case 5: return RESOURCE_ID_ICON_WEATHER_LIGHT_SNOW_ALT;
+      case 6: return RESOURCE_ID_ICON_WEATHER_HEAVY_SNOW_ALT;
+      case 7: return RESOURCE_ID_ICON_WEATHER_RAIN_SNOW_ALT;
+      case 8: return RESOURCE_ID_ICON_WEATHER_CLEAR_NIGHT_ALT;
+      case 9: return RESOURCE_ID_ICON_WEATHER_NIGHT_PARTLY_CLOUDY_ALT;
+      case 10: return RESOURCE_ID_ICON_WEATHER_NIGHT_CLOUDY_ALT;
+      case 11: return RESOURCE_ID_ICON_WEATHER_NIGHT_LIGHT_RAIN_ALT;
+      case 12: return RESOURCE_ID_ICON_WEATHER_NIGHT_HEAVY_RAIN_ALT;
+      case 13: return RESOURCE_ID_ICON_WEATHER_NIGHT_LIGHT_SNOW_ALT;
+      case 14: return RESOURCE_ID_ICON_WEATHER_NIGHT_HEAVY_SNOW_ALT;
+      case 15: return RESOURCE_ID_ICON_WEATHER_NIGHT_RAIN_SNOW_ALT;
+      default: return RESOURCE_ID_ICON_WEATHER_GENERIC_ALT;
+    }
+  } else {
+    switch(icon_id) {
+      case 0: return RESOURCE_ID_ICON_WEATHER_SUNNY;
+      case 1: return RESOURCE_ID_ICON_WEATHER_PARTLY_CLOUDY;
+      case 2: return RESOURCE_ID_ICON_WEATHER_CLOUDY;
+      case 3: return RESOURCE_ID_ICON_WEATHER_LIGHT_RAIN;
+      case 4: return RESOURCE_ID_ICON_WEATHER_HEAVY_RAIN;
+      case 5: return RESOURCE_ID_ICON_WEATHER_LIGHT_SNOW;
+      case 6: return RESOURCE_ID_ICON_WEATHER_HEAVY_SNOW;
+      case 7: return RESOURCE_ID_ICON_WEATHER_RAIN_SNOW;
+      case 8: return RESOURCE_ID_ICON_WEATHER_CLEAR_NIGHT;
+      case 9: return RESOURCE_ID_ICON_WEATHER_NIGHT_PARTLY_CLOUDY;
+      case 10: return RESOURCE_ID_ICON_WEATHER_NIGHT_CLOUDY;
+      case 11: return RESOURCE_ID_ICON_WEATHER_NIGHT_LIGHT_RAIN;
+      case 12: return RESOURCE_ID_ICON_WEATHER_NIGHT_HEAVY_RAIN;
+      case 13: return RESOURCE_ID_ICON_WEATHER_NIGHT_LIGHT_SNOW;
+      case 14: return RESOURCE_ID_ICON_WEATHER_NIGHT_HEAVY_SNOW;
+      case 15: return RESOURCE_ID_ICON_WEATHER_NIGHT_RAIN_SNOW;
+      default: return RESOURCE_ID_ICON_WEATHER_GENERIC;
+    }
+  }
+}
+
 // Inbox received callback
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "=== inbox_received_callback START ===");
@@ -656,29 +701,9 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
     }
     
     int icon_id = (int)icon_tuple->value->int32;
+    s_current_icon_id = icon_id;
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Weather icon ID: %d", icon_id);
-    uint32_t resource_id = RESOURCE_ID_ICON_WEATHER_GENERIC; // Default
-    
-    // Map icon IDs to new weather icon resources
-    switch(icon_id) {
-      case 0: resource_id = RESOURCE_ID_ICON_WEATHER_SUNNY; break;           // Clear/Sunny
-      case 1: resource_id = RESOURCE_ID_ICON_WEATHER_PARTLY_CLOUDY; break;   // Partly Cloudy
-      case 2: resource_id = RESOURCE_ID_ICON_WEATHER_CLOUDY; break;          // Cloudy
-      case 3: resource_id = RESOURCE_ID_ICON_WEATHER_LIGHT_RAIN; break;      // Light Rain
-      case 4: resource_id = RESOURCE_ID_ICON_WEATHER_HEAVY_RAIN; break;      // Heavy Rain/Rain
-      case 5: resource_id = RESOURCE_ID_ICON_WEATHER_LIGHT_SNOW; break;      // Light Snow
-      case 6: resource_id = RESOURCE_ID_ICON_WEATHER_HEAVY_SNOW; break;      // Heavy Snow/Snow
-      case 7: resource_id = RESOURCE_ID_ICON_WEATHER_RAIN_SNOW; break;       // Rain and Snow
-      case 8: resource_id = RESOURCE_ID_ICON_WEATHER_CLEAR_NIGHT; break;       // Clear Night (Moon)
-      case 9: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_PARTLY_CLOUDY; break; // Night Partly Cloudy
-      case 10: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_CLOUDY; break;       // Night Cloudy
-      case 11: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_LIGHT_RAIN; break;   // Night Light Rain
-      case 12: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_HEAVY_RAIN; break;   // Night Heavy Rain
-      case 13: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_LIGHT_SNOW; break;   // Night Light Snow
-      case 14: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_HEAVY_SNOW; break;   // Night Heavy Snow
-      case 15: resource_id = RESOURCE_ID_ICON_WEATHER_NIGHT_RAIN_SNOW; break;    // Night Rain/Snow Mix
-      default: resource_id = RESOURCE_ID_ICON_WEATHER_GENERIC; break;        // Generic/Unknown
-    }
+    uint32_t resource_id = get_resource_id_for_weather_icon(icon_id);
     
     s_weather_icon = gbitmap_create_with_resource(resource_id);
     bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon);
@@ -725,7 +750,25 @@ static void inbox_received_callback(DictionaryIterator *iterator, void *context)
       s_alt_weather_layout = new_layout;
       persist_write_bool(PERSIST_KEY_ALT_WEATHER_LAYOUT, s_alt_weather_layout);
       layout_changed = true;
-      APP_LOG(APP_LOG_LEVEL_DEBUG, "Alt Weather Layout: %d", s_alt_weather_layout);
+      APP_LOG(APP_LOG_LEVEL_DEBUG, "Alt Weather Layout changed to: %d", s_alt_weather_layout);
+      
+      // Force reload of weather icon with new layout
+      if (s_weather_icon) {
+        gbitmap_destroy(s_weather_icon);
+        s_weather_icon = NULL;
+      }
+      
+      uint32_t resource_id;
+      if (s_current_icon_id >= 0) {
+        resource_id = get_resource_id_for_weather_icon(s_current_icon_id);
+        APP_LOG(APP_LOG_LEVEL_DEBUG, "Reloading icon %d with resource %d", s_current_icon_id, (int)resource_id);
+      } else {
+        resource_id = s_alt_weather_layout ? RESOURCE_ID_ICON_WEATHER_GENERIC_ALT : RESOURCE_ID_ICON_WEATHER_GENERIC;
+        APP_LOG(APP_LOG_LEVEL_DEBUG, "Reloading generic icon with resource %d", (int)resource_id);
+      }
+      
+      s_weather_icon = gbitmap_create_with_resource(resource_id);
+      bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon);
     }
   }
   
@@ -989,7 +1032,7 @@ static void main_window_load(Window *window) {
   s_weather_icon_layer = bitmap_layer_create(GRect(81, 0, 54, 54));
   bitmap_layer_set_background_color(s_weather_icon_layer, GColorClear);
   bitmap_layer_set_compositing_mode(s_weather_icon_layer, GCompOpSet);
-  s_weather_icon = gbitmap_create_with_resource(RESOURCE_ID_ICON_WEATHER_GENERIC);
+  s_weather_icon = gbitmap_create_with_resource(s_alt_weather_layout ? RESOURCE_ID_ICON_WEATHER_GENERIC_ALT : RESOURCE_ID_ICON_WEATHER_GENERIC);
   bitmap_layer_set_bitmap(s_weather_icon_layer, s_weather_icon);
   layer_add_child(window_layer, bitmap_layer_get_layer(s_weather_icon_layer));
   
@@ -1003,7 +1046,7 @@ static void main_window_load(Window *window) {
   s_weather_condition_layer = text_layer_create(GRect(72, 84, 72, 0));
   text_layer_set_background_color(s_weather_condition_layer, GColorClear);
   text_layer_set_text_color(s_weather_condition_layer, GColorBlack);
-  text_layer_set_font(s_weather_condition_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+  text_layer_set_font(s_weather_condition_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text_alignment(s_weather_condition_layer, GTextAlignmentCenter);
   layer_add_child(window_layer, text_layer_get_layer(s_weather_condition_layer));
   

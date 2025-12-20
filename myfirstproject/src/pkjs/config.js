@@ -20,7 +20,7 @@ module.exports = [
       {
         "type": "toggle",
         "messageKey": "AltWeatherLayout",
-        "label": "Alt Weather Icons",
+        "label": "Alternative day and night icons",
         "description": "Move icon down and temperature up",
         "defaultValue": false
       },
